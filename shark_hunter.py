@@ -1,53 +1,65 @@
 import os
 import requests
-import time
 
-# --- CẤU HÌNH ---
+# --- CẤU HÌNH (Lấy từ GitHub Secrets) ---
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+HELIUS_KEY = os.getenv("HELIUS_API_KEY")
 
-def get_live_traders():
-    """Bot tự động lấy danh sách token đang hot và tìm ví đang mua"""
-    print("🔎 Bot đang quét các token đang bùng nổ trên Solana...")
+def get_live_sharks():
+    """Bot dùng API Helius để quét ví thật đang giao dịch"""
+    if not HELIUS_KEY:
+        print("ple helppp meee! Bạn quên chưa dán API Key vào GitHub Secrets rồi!")
+        return []
+    
+    print("🔎 Bot đang 'ngửi' mùi cá mập trên Raydium...")
+    # Quét các giao dịch mới nhất trên sàn Raydium
+    url = f"https://api.helius.xyz/v0/addresses/6EF8rrecthR5DkZJvyu7VpP6S06m7431/transactions?api-key={HELIUS_KEY}"
+    
     try:
-        # Lấy các cặp tiền có volume lớn nhất trong 24h qua trên Solana
-        response = requests.get("https://api.dexscreener.com/latest/dex/search?q=solana")
+        response = requests.get(url)
         if response.status_code == 200:
-            pairs = response.json().get('pairs', [])
-            # Trả về danh sách token và thông tin cơ bản
-            return pairs[:5] 
+            txs = response.json()
+            wallets = []
+            for tx in txs[:10]: # Quét 10 giao dịch gần nhất
+                # Bóc tách địa chỉ ví (người thực hiện lệnh)
+                description = tx.get('description', '')
+                if description:
+                    parts = description.split(' ')
+                    wallet = parts[0]
+                    # Kiểm tra định dạng ví Solana (thường dài 43-44 ký tự)
+                    if len(wallet) >= 32:
+                        wallets.append(wallet)
+            return list(set(wallets)) # Loại bỏ ví trùng lặp
     except Exception as e:
-        print(f"Lỗi kết nối sàn: {e}")
+        print(f"❌ Lỗi API: {e}")
     return []
 
-def hunt_and_filter():
-    hot_tokens = get_live_traders()
+def hunt():
+    live_wallets = get_live_sharks()
     
-    for token in hot_tokens:
-        token_name = token.get('baseToken', {}).get('name')
-        # Chỗ này mình sẽ lấy ví của người vừa giao dịch lớn nhất (giả lập từ dữ liệu cặp tiền)
-        # Trong thực tế, bạn cần API như Birdeye để bốc đúng ID ví. 
-        # Nhưng để chuẩn xác nhất cho bạn, bot sẽ gửi Token để bạn soi Holder trên GMGN
-        
-        # ĐIỀU KIỆN LỌC CHẤT LƯỢNG (Bạn mong muốn):
-        # Bot sẽ báo token đang hot, bạn nhấn vào xem Holder trên GMGN 
-        # Nếu thấy ví nào Winrate > 80% và trade > 10 con thì 'theo'
-        
-        send_alert(token_name, token.get('url'))
+    for addr in live_wallets:
+        # Gửi báo động về Telegram kèm link soi cao thủ
+        send_to_telegram(addr)
 
-def send_alert(name, url):
-    # Tạo link GMGN cho token đó để bạn soi danh sách ví (Holders)
-    # Vì soi ví đơn lẻ dễ dính ví ảo, soi danh sách ví đang ôm token hot sẽ chuẩn hơn
+def send_to_telegram(wallet):
+    # Link GMGN chuẩn 100% để bạn soi Winrate và PnL thực tế
+    gmgn_link = f"https://gmgn.ai/sol/address/{wallet}"
+    
     message = (
-        f"🚀 **PHÁT HIỆN TOKEN ĐANG ĐƯỢC GOM MẠNH**\n"
+        f"🚨 **PHÁT HIỆN CAO THỦ THỰC CHIẾN** 🚨\n"
         f"---------------------------\n"
-        f"💎 **Token:** {name}\n"
-        f"📊 **Hành động:** Bot thấy dòng tiền lớn đổ vào!\n"
+        f"👤 **Ví vừa mua:** `{wallet}`\n"
+        f"📊 **Hành động:** Hệ thống phát hiện giao dịch On-chain!\n"
         f"---------------------------\n"
-        f"🔗 [SOI DANH SÁCH CÁ MẬP TRÊN GMGN](https://gmgn.ai/sol/token/{url.split('/')[-1]})"
+        f"🚀 [SOI WINRATE TRÊN GMGN.AI]({gmgn_link})"
     )
-    requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", json={"chat_id": CHAT_ID, "text": message, "parse_mode": "Markdown"})
+    
+    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+    requests.post(url, json={"chat_id": CHAT_ID, "text": message, "parse_mode": "Markdown"})
 
 if __name__ == "__main__":
     if TOKEN and CHAT_ID:
-        hunt_and_filter()
+        hunt()
+    else:
+        print("ple helppp meee! Kiểm tra lại Token Bot nhé!")
