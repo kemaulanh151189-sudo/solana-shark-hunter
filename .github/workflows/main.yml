@@ -1,9 +1,9 @@
-name: Solana Whale Scanner Pro  # <- Đổi tên ở đây
+name: Solana Whale Scanner Pro
 
 on:
   schedule:
-    - cron: '*/2 * * * *'
-  workflow_dispatch:
+    - cron: '*/2 * * * *' # Chạy mỗi 2 phút
+  workflow_dispatch: # Cho phép nhấn nút chạy bằng tay
 
 jobs:
   scanner:
@@ -12,7 +12,6 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v2
-      # ... các bước còn lại giữ nguyên
 
       - name: Set up Python
         uses: actions/setup-python@v2
@@ -21,6 +20,17 @@ jobs:
 
       - name: Install dependencies
         run: pip install requests
+
+      # BƯỚC MỚI: ÉP GỬI THÔNG BÁO TEST MỖI KHI CHẠY
+      - name: Test Telegram Connection
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          curl -s -X POST https://api.telegram.org/bot$TELEGRAM_TOKEN/sendMessage \
+          -d chat_id=$TELEGRAM_CHAT_ID \
+          -d text="🟢 **BOT STATUS:** Active & Hunting! (Nhịp quét mỗi 2 phút)" \
+          -d parse_mode="Markdown"
 
       - name: Run Shark Hunter Bot
         env:
