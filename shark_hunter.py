@@ -2,46 +2,53 @@ import os
 import requests
 import time
 
-# --- THÔNG TIN TỪ SECRETS ---
+# --- CẤU HÌNH ---
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-def send_alert(wallet, winrate, pnl, trades_per_month, token_name):
-    """Gửi cảnh báo về Telegram chỉ khi cá mập hoạt động chăm chỉ"""
+def find_real_pro_traders():
+    """Tự động lùng sục các ví đang có lãi đậm trên Solana"""
+    print("🔎 Đang kết nối với DEX Data để lùng ví cao thủ...")
+    
+    # Đây là nơi Bot gọi dữ liệu từ các sàn (Giả lập gọi API DexScreener/GMGN)
+    # Nó sẽ trả về danh sách các ví vừa thực hiện lệnh mua/bán
+    potential_list = [
+        {"address": "H8S9pS...v1", "winrate": 88, "pnl": 250, "trades": 145, "token": "$WIF"},
+        {"address": "6nc99...abc", "winrate": 70, "pnl": 50, "trades": 10, "token": "$BONK"}, # Sẽ bị loại
+        {"address": "9WzDX...xyz", "winrate": 82, "pnl": 90, "trades": 85, "token": "$SOLAMA"}
+    ]
+    
+    for shark in potential_list:
+        # GIỮ LẠI BỘ LỌC CŨ CỦA BẠN:
+        # 1. Winrate > 80% 
+        # 2. Hoạt động > 50 lệnh/tháng (Tránh ví ảo, ví lười)
+        if shark['winrate'] >= 80 and shark['trades'] >= 50:
+            send_to_telegram(shark)
+            print(f"✅ Đã tìm thấy và báo cáo ví: {shark['address']}")
+        else:
+            print(f"⏭️ Bỏ qua ví {shark['address'][:5]}... vì không đủ tiêu chuẩn.")
+
+def send_to_telegram(data):
+    # Tạo link GMGN chuẩn như bạn vừa soi trong ảnh
+    gmgn_link = f"https://gmgn.ai/sol/address/{data['address']}"
+    
     message = (
-        f"🔥 **PHÁT HIỆN TRADER MEME THỰC THỤ** 🔥\n"
+        f"🎯 **PHÁT HIỆN CAO THỦ THỰC CHIẾN**\n"
         f"---------------------------\n"
-        f"👤 **Ví:** `{wallet}`\n"
-        f"📊 **Winrate (30d):** `{winrate}%`\n"
-        f"🔄 **Tần suất:** `{trades_per_month} lệnh/tháng` (Rất tích cực)\n"
-        f"💰 **Tổng lãi:** `+{pnl} SOL`\n"
-        f"💎 **Kèo mới nhất:** {token_name}\n"
+        f"👤 **Ví:** `{data['address']}`\n"
+        f"📈 **Winrate:** `{data['winrate']}%` (30 ngày)\n"
+        f"🔥 **Tần suất:** `{data['trades']} lệnh/tháng`\n"
+        f"💰 **Lợi nhuận:** `+{data['pnl']} SOL`\n"
+        f"💎 **Vừa mua:** {data['token']}\n"
         f"---------------------------\n"
-        f"🔗 [Soi ví ngay](https://solscan.io/account/{wallet})"
+        f"🔗 [SOI CHI TIẾT TRÊN GMGN.AI]({gmgn_link})"
     )
+    
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     requests.post(url, json={"chat_id": CHAT_ID, "text": message, "parse_mode": "Markdown"})
 
-def heavy_trader_scan():
-    print("🔎 Đang lọc danh sách cá mập chăm chỉ...")
-    
-    # Giả lập dữ liệu quét được từ hệ thống
-    # TRADES_COUNT là số lệnh trong 1 tháng
-    scan_results = [
-        {"address": "5tz69nnU9NBP3sre6YnyW69G58X8r6T1", "winrate": 85, "pnl": 150, "trades": 120, "token": "$SOLAMA"},
-        {"address": "7Yv5Hq6U9...abc", "winrate": 90, "pnl": 10, "trades": 2, "token": "$PEPE"}, # Con này lười, sẽ bị loại
-    ]
-    
-    for shark in scan_results:
-        # BỘ LỌC THÔNG MINH: Winrate > 80% VÀ phải đánh trên 50 lệnh/tháng
-        if shark['winrate'] >= 80 and shark['trades'] >= 50:
-            print(f"✅ Đã tìm thấy cao thủ: {shark['address']} với {shark['trades']} lệnh.")
-            send_alert(shark['address'], shark['winrate'], shark['pnl'], shark['trades'], shark['token'])
-        else:
-            print(f"❌ Loại ví {shark['address'][:8]} vì quá lười hoặc winrate thấp.")
-
 if __name__ == "__main__":
-    if not TOKEN or not CHAT_ID:
-        print("ple helppp meee! Secrets chưa chuẩn!")
+    if TOKEN and CHAT_ID:
+        find_real_pro_traders()
     else:
-        heavy_trader_scan()
+        print("ple helppp meee! Check lại Secrets đi bạn ơi!")
