@@ -1,14 +1,18 @@
+name: Solana Whale Scanner Pro  # <- Đổi tên ở đây
+
 on:
   schedule:
     - cron: '*/2 * * * *'
   workflow_dispatch:
 
 jobs:
-  build:
+  scanner:
+    name: Market Analysis Run
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v2
+      # ... các bước còn lại giữ nguyên
 
       - name: Set up Python
         uses: actions/setup-python@v2
