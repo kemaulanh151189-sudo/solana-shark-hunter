@@ -1,8 +1,10 @@
-name: Shark Scan Bot
+name: Shark Scan Bot 🦈
+
 on:
   schedule:
-    - cron: '*/15 * * * *' # Cứ 15 phút tự quét mạng Solana 1 lần
-  workflow_dispatch: # Cho phép bạn bấm nút chạy thử ngay
+    # Chạy mỗi 5 phút (định dạng Cron)
+    - cron: '*/5 * * * *'
+  workflow_dispatch: # Vẫn giữ nút bấm thủ công nếu bạn muốn chạy ngay
 
 jobs:
   build:
@@ -10,13 +12,18 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
+
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
           python-version: '3.9'
+
       - name: Install dependencies
-        run: pip install requests
-      - name: Run shark hunter
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      - name: Run Shark Hunter
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
