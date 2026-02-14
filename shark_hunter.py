@@ -54,14 +54,16 @@ def hunt():
 def send_to_telegram(wallet):
     gmgn_link = f"https://gmgn.ai/sol/address/{wallet}"
     
+    # Đổi tiêu đề cho chuyên nghiệp hơn
     message = (
-        f"🚨 **PHÁT HIỆN GIAO DỊCH ON-CHAIN** 🚨\n"
-        f"---------------------------\n"
-        f"👤 **Ví:** `{wallet}`\n"
-        f"📊 **Hành động:** Vừa thực hiện Swap trên Raydium\n"
-        f"---------------------------\n"
-        f"🚀 [SOI CHI TIẾT WINRATE TRÊN GMGN]({gmgn_link})"
+        f"🔍 **STRATEGY: ELITE TRADER DETECTED**\n"
+        f"----------------------------------\n"
+        f"👤 **Address:** `{wallet}`\n"
+        f"📈 **Activity:** High-Frequency Swap\n"
+        f"----------------------------------\n"
+        f"🚀 [ANALYZE ON GMGN.AI]({gmgn_link})"
     )
+    # ... code gửi tin nhắn giữ nguyên
     
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     try:
