@@ -49,6 +49,8 @@ def send_ultimate_alert(wallet):
         f"⚠️ **DANGER:** Tuyệt đối KHÔNG ký 'Approve Access'\n"
         f"----------------------------------\n"
         f"🕵️ **SOI DEV:** Check ví Deployer xem có 'vết' không!"
+        f"----------------------------------\n"
+        f"💰 [CHECK DEV WALLET](https://solscan.io/address/{wallet})"
     )
 
     footer = (
