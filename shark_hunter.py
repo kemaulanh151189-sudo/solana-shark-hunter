@@ -1,6 +1,7 @@
 import os
 import requests
 import time
+from datetime import datetime
 
 # --- CẤU HÌNH HỆ THỐNG ---
 TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -36,8 +37,24 @@ def get_live_traders():
         print(f"❌ Lỗi kết nối API: {e}")
     return []
 
+def send_heartbeat():
+    """Gửi thông báo định kỳ để bạn biết bot vẫn đang sống"""
+    # Chỉ gửi thông báo 'Sống' vào phút thứ 0 của mỗi giờ để tiết kiệm credit
+    now = datetime.now()
+    if now.minute < 2: # Vì bot chạy mỗi 2 phút, nên check khoảng này
+        msg = f"🟢 **SYSTEM STATUS: ACTIVE**\n🕒 Time: `{now.strftime('%H:%M')}`\n📡 Scanner is working properly."
+        url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+        try:
+            requests.post(url, json={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"})
+        except:
+            pass
+
 def hunt():
     print("🚀 Bot đang bắt đầu ca trực săn cá mập...")
+    
+    # Gửi tin nhắn xác nhận hệ thống online (Heartbeat)
+    send_heartbeat()
+    
     wallets = get_live_traders()
     
     if not wallets:
@@ -46,7 +63,6 @@ def hunt():
 
     for addr in wallets:
         # Gửi thông tin về Telegram
-        # Bạn chỉ cần nhấn vào link GMGN là sẽ thấy ngay Winrate > 80% hay không
         send_to_telegram(addr)
         # Nghỉ 1s giữa các lần gửi để tránh bị Telegram chặn (Spam)
         time.sleep(1)
@@ -63,7 +79,6 @@ def send_to_telegram(wallet):
         f"----------------------------------\n"
         f"🚀 [ANALYZE ON GMGN.AI]({gmgn_link})"
     )
-    # ... code gửi tin nhắn giữ nguyên
     
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     try:
