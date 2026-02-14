@@ -34,7 +34,12 @@ def scan_solana():
             # Gửi tin nhắn qua Telegram
             tele_url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
             params = {"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"}
-            requests.get(tele_url, params=params)
+            res = requests.get(tele_url, params=params)
+            
+            if res.status_code == 200:
+                print(f"✅ Đã báo tin về {name} qua Telegram!")
+            else:
+                print(f"❌ Lỗi Telegram: {res.text}")
             break # Chỉ báo thử 1 con để kiểm tra kết nối
             
     except Exception as e:
