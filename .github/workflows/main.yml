@@ -1,4 +1,26 @@
 on:
   schedule:
-    - cron: '*/2 * * * *'  # Quét mỗi 2 phút (Khoảng 21,600 lần/tháng)
-  workflow_dispatch:      # Để bạn có thể bấm chạy tay khi cần
+    - cron: '*/2 * * * *'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run Shark Hunter Bot
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          HELIUS_API_KEY: ${{ secrets.HELIUS_API_KEY }}
+        run: python shark_hunter.py
