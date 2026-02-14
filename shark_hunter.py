@@ -1,49 +1,22 @@
-import requests
 import os
+import requests
 
-# Lấy thông tin từ két sắt GitHub Secrets bạn vừa tạo
-TOKEN = os.getenv("TELEGRAM_TOKEN")
-CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-
-def scan_solana():
-    # Kiểm tra xem đã có chìa khóa chưa
-    if not TOKEN or not CHAT_ID:
-        print("❌ Lỗi: Chưa tìm thấy TOKEN hoặc CHAT_ID trong Secrets!")
-        return
-
-    # Quét top 5 token đang hot nhất trên Solana từ DexScreener
-    url = "https://api.dexscreener.com/latest/dex/tokens/solana"
+def main():
+    print("--- ĐANG KIỂM TRA KẾT NỐI ---")
+    token = os.getenv("TELEGRAM_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    
+    print(f"Token (4 ký tự đầu): {token[:4] if token else 'Trống'}")
+    print(f"Chat ID: {chat_id}")
+    
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    data = {"chat_id": chat_id, "text": "🔔 Test từ GitHub!"}
+    
     try:
-        response = requests.get(url)
-        data = response.json()
-        pairs = data.get('pairs', [])[:5]
-        
-        for pair in pairs:
-            name = pair['baseToken']['name']
-            price = pair.get('priceUsd', 'N/A')
-            volume = pair.get('volume', {}).get('h24', 0)
-            
-            # Nội dung tin nhắn gửi về Telegram
-            msg = (
-                f"🛰️ **Hệ thống đang soi:** {name}\n"
-                f"💰 Giá: ${price}\n"
-                f"📊 Volume 24h: ${volume:,.0f}\n"
-                f"👉 Đang quét tìm các ví thắng đậm..."
-            )
-            
-            # Gửi tin nhắn qua Telegram
-            tele_url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-            params = {"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"}
-            res = requests.get(tele_url, params=params)
-            
-            if res.status_code == 200:
-                print(f"✅ Đã báo tin về {name} qua Telegram!")
-            else:
-                print(f"❌ Lỗi Telegram: {res.text}")
-            break # Chỉ báo thử 1 con để kiểm tra kết nối
-            
+        r = requests.post(url, json=data)
+        print(f"Kết quả gửi tin: {r.text}")
     except Exception as e:
-        print(f"Lỗi rồi bạn ơi: {e}")
+        print(f"Lỗi: {e}")
 
 if __name__ == "__main__":
-    scan_solana()
+    main()
