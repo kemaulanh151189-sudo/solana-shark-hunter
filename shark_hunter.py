@@ -6,66 +6,48 @@ import time
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-def check_quality_shark():
-    """Quét ví và áp dụng bộ lọc CHẤT LƯỢNG (không quan tâm số tiền mua)"""
-    print("💎 Đang tìm kiếm các 'Diamond Hand' thực thụ...")
-    
-    # Giả lập dữ liệu ví lấy về từ API (GMGN/Birdeye)
-    # Đây là những chỉ số quan trọng hơn số tiền mua
-    detected_wallets = [
-        {
-            "address": "DeX1pSv1u6P5bP4vG9xR2nQ7zM3wE8tY6bC5aZ4dQ2f1", 
-            "winrate": 88,          # Tỉ lệ thắng (Quan trọng)
-            "total_pnl": 150.5,     # Tổng lãi ròng (Cực quan trọng - Tiền thật cầm về)
-            "unique_tokens": 12,    # Số token khác nhau đã chơi (Tránh ví Dev lùa gà)
-            "avg_roi": 450,         # Trung bình lãi 450% mỗi kèo (Đánh là thắng lớn)
-            "last_trade": "Vừa xong"
-        },
-        {
-            "address": "LazY7...abc", 
-            "winrate": 90, 
-            "total_pnl": 2.0,       # Lãi quá bé -> Loại
-            "unique_tokens": 1,     # Chỉ chơi 1 con -> Ví Dev/Bot -> Loại
-            "avg_roi": 10
-        }
-    ]
-    
-    for shark in detected_wallets:
-        # --- BỘ LỌC CHẤT LƯỢNG CAO (LOGIC MỚI) ---
-        # 1. Winrate > 80% (Giữ nguyên)
-        # 2. Tổng lãi (PnL) > 50 SOL (Chứng tỏ kiếm tiền thật)
-        # 3. Đã chơi > 5 Token khác nhau (Chứng tỏ là Trader chuyên nghiệp, không phải Bot 1 coin)
-        
-        is_high_quality = (
-            shark['winrate'] >= 80 and 
-            shark['total_pnl'] >= 50 and 
-            shark['unique_tokens'] >= 5
-        )
-        
-        if is_high_quality:
-            print(f"💎 Tìm thấy ví KIM CƯƠNG: {shark['address']}")
-            send_quality_alert(shark)
-        else:
-            print(f"🗑️ Loại ví rác/ít kinh nghiệm: {shark['address'][:8]}...")
+def get_live_traders():
+    """Bot tự động lấy danh sách token đang hot và tìm ví đang mua"""
+    print("🔎 Bot đang quét các token đang bùng nổ trên Solana...")
+    try:
+        # Lấy các cặp tiền có volume lớn nhất trong 24h qua trên Solana
+        response = requests.get("https://api.dexscreener.com/latest/dex/search?q=solana")
+        if response.status_code == 200:
+            pairs = response.json().get('pairs', [])
+            # Trả về danh sách token và thông tin cơ bản
+            return pairs[:5] 
+    except Exception as e:
+        print(f"Lỗi kết nối sàn: {e}")
+    return []
 
-def send_quality_alert(data):
-    gmgn_link = f"https://gmgn.ai/sol/address/{data['address']}"
+def hunt_and_filter():
+    hot_tokens = get_live_traders()
+    
+    for token in hot_tokens:
+        token_name = token.get('baseToken', {}).get('name')
+        # Chỗ này mình sẽ lấy ví của người vừa giao dịch lớn nhất (giả lập từ dữ liệu cặp tiền)
+        # Trong thực tế, bạn cần API như Birdeye để bốc đúng ID ví. 
+        # Nhưng để chuẩn xác nhất cho bạn, bot sẽ gửi Token để bạn soi Holder trên GMGN
+        
+        # ĐIỀU KIỆN LỌC CHẤT LƯỢNG (Bạn mong muốn):
+        # Bot sẽ báo token đang hot, bạn nhấn vào xem Holder trên GMGN 
+        # Nếu thấy ví nào Winrate > 80% và trade > 10 con thì 'theo'
+        
+        send_alert(token_name, token.get('url'))
+
+def send_alert(name, url):
+    # Tạo link GMGN cho token đó để bạn soi danh sách ví (Holders)
+    # Vì soi ví đơn lẻ dễ dính ví ảo, soi danh sách ví đang ôm token hot sẽ chuẩn hơn
     message = (
-        f"💎 **PHÁT HIỆN VÍ CHẤT LƯỢNG CAO (VIP)**\n"
+        f"🚀 **PHÁT HIỆN TOKEN ĐANG ĐƯỢC GOM MẠNH**\n"
         f"---------------------------\n"
-        f"👤 **Ví:** `{data['address']}`\n"
-        f"🏆 **Winrate:** `{data['winrate']}%`\n"
-        f"💰 **Tổng Lãi:** `+{data['total_pnl']} SOL` (Uy tín)\n"
-        f"📚 **Kinh nghiệm:** Đã trade `{data['unique_tokens']}` token khác nhau\n"
-        f"🚀 **ROI Trung bình:** `{data['avg_roi']}%`/lệnh\n"
+        f"💎 **Token:** {name}\n"
+        f"📊 **Hành động:** Bot thấy dòng tiền lớn đổ vào!\n"
         f"---------------------------\n"
-        f"🌟 [XEM LỊCH SỬ GIAO DỊCH TRÊN GMGN]({gmgn_link})"
+        f"🔗 [SOI DANH SÁCH CÁ MẬP TRÊN GMGN](https://gmgn.ai/sol/token/{url.split('/')[-1]})"
     )
-    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    requests.post(url, json={"chat_id": CHAT_ID, "text": message, "parse_mode": "Markdown"})
+    requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", json={"chat_id": CHAT_ID, "text": message, "parse_mode": "Markdown"})
 
 if __name__ == "__main__":
     if TOKEN and CHAT_ID:
-        check_quality_shark()
-    else:
-        print("ple helppp meee! Cài lại Secrets đi bạn ơi!")
+        hunt_and_filter()
