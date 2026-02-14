@@ -1,0 +1,20 @@
+name: Shark Scan Bot
+on:
+  schedule:
+    - cron: '*/15 * * * *' # Cứ 15 phút tự quét mạng Solana 1 lần
+  workflow_dispatch: # Cho phép bạn bấm nút chạy thử ngay
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
+      - name: Install dependencies
+        run: pip install requests
+      - name: Run shark hunter
+        run: python shark_hunter.py
