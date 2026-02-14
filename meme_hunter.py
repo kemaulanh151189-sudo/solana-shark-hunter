@@ -32,17 +32,15 @@ def get_exclusive_pools():
 
 def send_ultimate_alert(wallet):
     """Gửi báo cáo săn Meme hoàn chỉnh (ple helppp meee!)"""
-    # Các công cụ soi kèo "tủ" của bạn
     gmgn_wallet = f"https://gmgn.ai/sol/address/{wallet}"
     rugcheck_url = "https://rugcheck.xyz/"
-    # Công cụ soi ví Dev chuyên nghiệp
     solanafm_url = f"https://solana.fm/address/{wallet}"
 
     header = "🚀 **MEME SNIPER V3: EXCLUSIVE FILTER** 🚀"
     
     body = (
         f"👤 **Cá mập/Insider:** `{wallet}`\n"
-        f"⏱️ **Độ tươi:** < 5 phút (Vừa "bắn" lệnh)\n"
+        f"⏱️ **Độ tươi:** < 5 phút (Vừa 'bắn' lệnh)\n"
         f"----------------------------------\n"
         f"🎯 **TIÊU CHUẨN RIÊNG CỦA BẠN:**\n"
         f"❌ **HOLDERS:** Top 10 PHẢI < 5% (Check GMGN)\n"
@@ -52,6 +50,20 @@ def send_ultimate_alert(wallet):
         f"----------------------------------\n"
         f"🕵️ **SOI DEV:** Check ví Deployer xem có 'vết' không!"
     )
+
+    footer = (
+        f"🔍 [SOI HOLDERS & DEV]({gmgn_wallet})\n"
+        f"🛡️ [CHECK SCAM/TAX]({rugcheck_url})\n"
+        f"🌐 [LỊCH SỬ VÍ (SOLANAFM)]({solanafm_url})\n"
+        f"💰 [CHECK DEV WALLET](https://solscan.io/address/{wallet})"
+    )
+    
+    msg = f"{header}\n\n{body}\n\n{footer}"
+    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+    try:
+        requests.post(url, json={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown", "disable_web_page_preview": True})
+    except: 
+        pass
 
     # Nút bấm hành động
     footer = (
