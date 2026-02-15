@@ -1,19 +1,19 @@
 name: Shark Test Flow
 
 on:
-  workflow_dispatch: # Cho phép bạn bấm nút "Run workflow" thủ công
+  workflow_dispatch:
 
 jobs:
   test-shark:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.9'
+          python-version: '3.11'
 
       - name: Install dependencies
         run: pip install requests
@@ -23,5 +23,4 @@ jobs:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           HELIUS_API_KEY: ${{ secrets.HELIUS_API_KEY }}
-        # QUAN TRỌNG: Phải dùng dấu ngoặc kép vì tên file của bạn có dấu cách
-        run: python "test shark"
+        run: python test_shark.py
