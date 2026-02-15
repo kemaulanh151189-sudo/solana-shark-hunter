@@ -172,6 +172,10 @@ def send_to_telegram(data, index):
         print(f"[TG ERR]: {str(e)}")
 
 if __name__ == "__main__":
+    print("=== SCRIPT BẮT ĐẦU CHẠY ===")
+print(f"Thời gian bắt đầu: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+print(f"HELIUS_KEY có giá trị: {'Có' if HELIUS_KEY else 'Không'}")
+print("Bắt đầu quét Raydium...")
     print(f"=== START QUÉT TOP SHARK 24H (chậm an toàn): {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ===")
     if not all([TOKEN, CHAT_ID, HELIUS_KEY]):
         print("[ERROR]: Thiếu env vars!")
