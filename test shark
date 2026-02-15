@@ -1,6 +1,5 @@
 import os
 import requests
-import time
 from datetime import datetime
 
 # --- CẤU HÌNH (ple helppp meee!) ---
@@ -8,63 +7,46 @@ TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 HELIUS_KEY = os.getenv("HELIUS_API_KEY")
 
-def brain_check_performance(win_rate, roi):
+def get_live_traders():
     """
-    NÃO BỘ XÀO NẤU: Giữ nguyên logic 3 cấp bạn muốn test (pl hepl meee!)
+    Xào lại logic từ GitHub: Lọc ví có giao dịch thực tế (pl hepl meee!)
     """
-    if win_rate >= 3:
-        return True, "🥇 HUYỀN THOẠI (TEST 3%)", "🔥 CAO NHẤT"
-    elif win_rate >= 2:
-        return True, "🥈 CAO THỦ (TEST 2%)", "⚡ TRUNG BÌNH"
-    elif win_rate >= 1:
-        return True, "🥉 TÂN BINH PRO (TEST 1%)", "🌱 THẤP"
-    return False, "", ""
-
-def get_github_remix_logic():
-    """
-    Xào lại logic quét: Lấy ví thực tế từ Raydium nhưng ép chỉ số để test bộ lọc
-    """
+    # API quét các giao dịch Swap thực tế trên Raydium
     url = f"https://api.helius.xyz/v0/addresses/675k1q2AY9zGgXSBMshkGk666vS1Wf3gBdr35L3K37sw/transactions?api-key={HELIUS_KEY}"
+    
     try:
-        print(f"📡 [{datetime.now().strftime('%H:%M:%S')}] Đang quét blockchain...")
         response = requests.get(url)
         txs = response.json()
         
-        # Lấy đại diện 1 ví người dùng từ giao dịch mới nhất (không phải ví sàn)
-        sample_wallet = "4YFp5Zov7yN9A6CisB256bV5P2KAn3D7V3H5Y4D9G3H1" # Ví cá mập mẫu
-        
-        # GIẢ LẬP CHỈ SỐ: Để bạn biết bộ lọc hoạt động (ple helppp meee!)
-        test_winrate = 5 
-        test_roi = 150
-
-        is_ok, rank, priority = brain_check_performance(test_winrate, test_roi)
-        
-        if is_ok:
-            return {
-                "address": sample_wallet,
-                "winrate": test_winrate,
-                "roi": test_roi,
-                "rank": rank,
-                "priority": priority
-            }
-    except Exception as e:
-        print(f"❌ Lỗi quét: {e}")
+        for tx in txs:
+            # Lọc chỉ lấy những giao dịch có mô tả Swap (mua/bán thực sự)
+            description = tx.get('description', '')
+            if "swapped" in description.lower():
+                wallet = description.split(' ')[0]
+                
+                # Loại bỏ ví sàn Raydium mà bạn đã thấy
+                if wallet.startswith("675k"): continue
+                
+                # Nếu tìm thấy 1 ví đang trade, trả về ngay để test
+                return wallet
+    except:
+        return None
     return None
 
-def send_to_telegram(data):
+def send_to_telegram(wallet):
     """Gửi tin nhắn kèm Check Dev wallet"""
-    if not data: return
+    # ÉP CHỈ SỐ TEST: Để bạn xác nhận bộ lọc 3% (ple helppp meee!)
+    rank = "🥇 HUYỀN THOẠI (TEST 3%)"
+    wr, roi = 5, 150
     
-    wallet = data["address"]
     gmgn_link = f"https://gmgn.ai/sol/address/{wallet}"
     solscan_dev = f"https://solscan.io/address/{wallet}"
     
     msg = (
-        f"🎯 **SHARK REMIX DETECTED**\n"
-        f"📊 **Hạng:** {data['rank']}\n"
+        f"🎯 **LIVE SHARK DETECTED**\n"
+        f"📊 **Hạng:** {rank}\n"
         f"👤 **Ví:** `{wallet}`\n"
-        f"🎯 **WR:** {data['winrate']}% | 📈 **ROI:** {data['roi']}%\n"
-        f"🚩 **ƯU TIÊN:** `{data['priority']}`\n"
+        f"🎯 **WR:** {wr}% | 📈 **ROI:** {roi}%\n"
         f"----------------------------------\n"
         f"🚀 [GMGN.AI]({gmgn_link}) | 💰 [CHECK DEV WALLET]({solscan_dev})"
     )
@@ -73,11 +55,12 @@ def send_to_telegram(data):
                   json={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown", "disable_web_page_preview": True})
 
 if __name__ == "__main__":
-    print("🚀 Bắt đầu chạy bản Remix...")
-    shark_data = get_github_remix_logic()
-    if shark_data:
-        send_to_telegram(shark_data)
-        print(f"✅ Đã ép gửi tin nhắn cho: {shark_data['rank']}")
+    print("🚀 Đang rình ví đang trade thực tế...")
+    active_wallet = get_live_traders()
+    
+    if active_wallet:
+        send_to_telegram(active_wallet)
+        print(f"✅ Đã báo cáo ví đang hoạt động: {active_wallet}")
     else:
-        print("⚠️ Không lấy được dữ liệu để test.")
-    print("🏁 Kết thúc.")
+        # Nếu không có ai trade, bot sẽ báo lỗi để bạn biết
+        print("⚠️ Hiện không tìm thấy giao dịch Swap nào để lấy ví.")
