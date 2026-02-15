@@ -23,4 +23,5 @@ jobs:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           HELIUS_API_KEY: ${{ secrets.HELIUS_API_KEY }}
-        run: python test.py
+        # QUAN TRỌNG: Phải dùng dấu ngoặc kép vì tên file của bạn có dấu cách
+        run: python "test shark"
