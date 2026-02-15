@@ -1,66 +1,65 @@
 import os
 import requests
+import time
 from datetime import datetime
 
-# --- CẤU HÌNH (ple helppp meee!) ---
+# --- CẤU HÌNH (pl hepl meee!) ---
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 HELIUS_KEY = os.getenv("HELIUS_API_KEY")
 
-def get_live_traders():
-    """
-    Xào lại logic từ GitHub: Lọc ví có giao dịch thực tế (pl hepl meee!)
-    """
-    # API quét các giao dịch Swap thực tế trên Raydium
+def get_live_whale_from_chain():
+    """Xào lại logic từ GitHub: Quét giao dịch thực tế đang diễn ra (ple helppp meee!)"""
     url = f"https://api.helius.xyz/v0/addresses/675k1q2AY9zGgXSBMshkGk666vS1Wf3gBdr35L3K37sw/transactions?api-key={HELIUS_KEY}"
-    
     try:
+        print(f"📡 [{datetime.now().strftime('%H:%M:%S')}] Đang quét ví thực tế...")
         response = requests.get(url)
         txs = response.json()
         
         for tx in txs:
-            # Lọc chỉ lấy những giao dịch có mô tả Swap (mua/bán thực sự)
             description = tx.get('description', '')
+            # Chỉ lấy ví đang thực hiện lệnh Swap (mua/bán thật)
             if "swapped" in description.lower():
                 wallet = description.split(' ')[0]
-                
-                # Loại bỏ ví sàn Raydium mà bạn đã thấy
-                if wallet.startswith("675k"): continue
-                
-                # Nếu tìm thấy 1 ví đang trade, trả về ngay để test
-                return wallet
-    except:
-        return None
+                # Loại bỏ ví hệ thống Raydium đã biết
+                if not wallet.startswith("675k") and len(wallet) >= 32:
+                    return wallet
+    except Exception as e:
+        print(f"❌ Lỗi API: {e}")
     return None
 
 def send_to_telegram(wallet):
-    """Gửi tin nhắn kèm Check Dev wallet"""
-    # ÉP CHỈ SỐ TEST: Để bạn xác nhận bộ lọc 3% (ple helppp meee!)
+    """Gửi tin nhắn kèm bộ lọc test 3-2-1% (ple helppp meee!)"""
+    # ÉP CHỈ SỐ: Để bạn thấy được cách phân cấp hoạt động (pl hepl meee!)
     rank = "🥇 HUYỀN THOẠI (TEST 3%)"
-    wr, roi = 5, 150
+    wr, roi = 5, 200 # Chỉ số giả lập để kích hoạt Cấp 1
     
     gmgn_link = f"https://gmgn.ai/sol/address/{wallet}"
     solscan_dev = f"https://solscan.io/address/{wallet}"
     
     msg = (
-        f"🎯 **LIVE SHARK DETECTED**\n"
+        f"🎯 **REAL-TIME SHARK DETECTED**\n"
         f"📊 **Hạng:** {rank}\n"
         f"👤 **Ví:** `{wallet}`\n"
         f"🎯 **WR:** {wr}% | 📈 **ROI:** {roi}%\n"
+        f"🚩 **ƯU TIÊN:** `🔥 CAO NHẤT`\n"
         f"----------------------------------\n"
         f"🚀 [GMGN.AI]({gmgn_link}) | 💰 [CHECK DEV WALLET]({solscan_dev})"
     )
     
-    requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", 
-                  json={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown", "disable_web_page_preview": True})
+    resp = requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", 
+                         json={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown", "disable_web_page_preview": True})
+    return resp.status_code == 200
 
 if __name__ == "__main__":
-    print("🚀 Đang rình ví đang trade thực tế...")
-    active_wallet = get_live_traders()
+    print("🚀 Bắt đầu săn ví đang hoạt động...")
+    real_wallet = get_live_whale_from_chain()
     
-    if active_wallet:
-        send_to_telegram(active_wallet)
-        print(f"✅ Đã báo cáo ví đang hoạt động: {active_wallet}")
+    if real_wallet:
+        if send_to_telegram(real_wallet):
+            print(f"✅ THÀNH CÔNG: Đã bắn ví {real_wallet[:8]}... về Telegram!")
+        else:
+            print("❌ LỖI: Không thể gửi tin nhắn Telegram.")
     else:
-        # Nếu không có ai trade, bot sẽ báo lỗi để bạn biết
-        print("⚠️ Hiện không tìm thấy giao dịch Swap nào để lấy ví.")
+        print("⚠️ Không tìm thấy giao dịch nào đang diễn ra. Hãy thử lại sau 30 giây!")
+    print("🏁 Kết thúc Test.")
