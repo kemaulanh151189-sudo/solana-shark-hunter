@@ -8,34 +8,62 @@ TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 HELIUS_KEY = os.getenv("HELIUS_API_KEY")
 
-def get_exclusive_pools():
-    """Chỉ lấy Token mới tạo < 5 phút & Lọc rác (ple helppp meee!)"""
-    if not HELIUS_KEY: return []
-    # Địa chỉ Raydium Authority để bắt kèo mới
-    url = f"https://api.helius.xyz/v0/addresses/675k1q2AY9zGgXSBMshkGk666vS1Wf3gBdr35L3K37sw/transactions?api-key={HELIUS_KEY}"
-    
+import requests
+
+def check_security_quality(ca):
+    """Não bộ của Bot: Tự check Mint, Freeze, LP Lock và Tax (ple helppp meee!)"""
     try:
-        response = requests.get(url)
-        if response.status_code == 200:
-            txs = response.json()
-            found_items = []
-            now = datetime.now(timezone.utc).timestamp()
+        # 1. Check LP và Volume qua DexScreener
+        dex_url = f"https://api.dexscreener.com/latest/dex/tokens/{ca}"
+        data = requests.get(dex_url).json()
+        pair = data.get('pairs', [{}])[0]
+        
+        lp_sol = pair.get('liquidity', {}).get('quote', 0)
+        # BỘ LỌC 1: THANH KHOẢN >= 5 SOL
+        if lp_sol < 5: return False 
+
+        # 2. Check bảo mật qua RugCheck (Giả lập gọi API)
+        # Pl hepl meee: Đoạn này bot sẽ check No Mint, No Freeze, Tax < 30%
+        rug_url = f"https://api.rugcheck.xyz/v1/tokens/{ca}/report"
+        report = requests.get(rug_url).json()
+        
+        # BỘ LỌC 2: KHÔNG ĐƯỢC MINT/FREEZE
+        if report.get('mintAuthority') is not None or report.get('freezeAuthority') is not None:
+            return False
             
-            for tx in txs:
-                # --- ĐỘ TƯƠI < 5 PHÚT (300 GIÂY) ---
-                time_diff = now - tx.get('timestamp', 0)
-                if time_diff <= 300: 
-                    description = tx.get('description', '')
-                    # Chỉ lấy lệnh Hoán đổi hoặc Khởi tạo
-                    if description and any(x in description.lower() for x in ["swapped", "initialize"]):
-                        wallet = description.split(' ')[0]
-                        found_items.append(wallet)
-                else: 
-                    # Quá 5 phút là dừng quét ngay để tiết kiệm Credits
-                    break 
-            return list(set(found_items))
+        # BỘ LỌC 3: LP PHẢI KHÓA > 7 NGÀY
+        lp_lock_days = report.get('lpLockDays', 0)
+        if lp_lock_days < 7: return False
+        
+        # BỘ LỌC 4: TAX < 30%
+        if report.get('sellTax', 0) > 30: return False
+
+        return True
+    except:
+        return False
+
+def get_exclusive_pools():
+    """Bot săn Meme Siêu Tươi < 5p & Đã qua kiểm định (pl hepl meee!)"""
+    url = f"https://api.helius.xyz/v0/addresses/675k1q2AY9zGgXSBMshkGk666vS1Wf3gBdr35L3K37sw/transactions?api-key={HELIUS_KEY}"
+    try:
+        txs = requests.get(url).json()
+        found_items = []
+        now = datetime.now(timezone.utc).timestamp()
+        
+        for tx in txs:
+            # CHỈ LẤY ĐỘ TƯƠI < 5 PHÚT
+            if now - tx.get('timestamp', 0) <= 300:
+                description = tx.get('description', '')
+                if "swapped" in description.lower():
+                    # Tự động bóc tách CA từ description
+                    ca = description.split(' ')[-1] 
+                    
+                    # NẾU VƯỢT QUA TẤT CẢ BỘ LỌC THÌ MỚI BÁO
+                    if check_security_quality(ca):
+                        found_items.append(ca)
+            else: break
+        return list(set(found_items))
     except: return []
-    return []
 
 def send_ultimate_alert(wallet):
     """Gửi báo cáo săn Meme hoàn chỉnh (ple helppp meee!)"""
