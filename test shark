@@ -3,33 +3,29 @@ import requests
 import time
 from datetime import datetime, timedelta
 
-# --- CẤU HÌNH HỆ THỐNG ---
+# --- CẤU HÌNH ---
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 HELIUS_KEY = os.getenv("HELIUS_API_KEY")
-
-# Sửa địa chỉ Raydium AMM v4 đúng (Legacy Constant Product) từ docs Raydium
-RAYDIUM_V4 = "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8"
+RAYDIUM_V4 = "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8"  # Địa chỉ đúng, không sửa
 
 def get_all_tx_24h(address, is_raydium=False):
     """Quét lùi thời gian để lấy TẤT CẢ giao dịch trong 24h (ple helppp meee!)"""
     all_txs = []
     last_signature = None
     cutoff_time = datetime.now() - timedelta(hours=24)
-    
-    # Helius cho phép paginate bằng 'before' (signature trước đó)
-    for _ in range(15):  # Tối đa 15 trang (1500 tx, đủ cho 24h)
+   
+    for _ in range(15): # Quét tối đa 15 trang dữ liệu
         url = f"https://api.helius.xyz/v0/addresses/{address}/transactions?api-key={HELIUS_KEY}&limit=100"
         if last_signature:
             url += f"&before={last_signature}"
-        
+       
         try:
             response = requests.get(url, timeout=10)
-            response.raise_for_status()  # Raise nếu lỗi HTTP
+            response.raise_for_status()
             txs = response.json()
-            if not txs:
-                break
-            
+            if not txs: break
+           
             added = False
             for tx in txs:
                 ts = tx.get('timestamp')
@@ -37,56 +33,51 @@ def get_all_tx_24h(address, is_raydium=False):
                     all_txs.append(tx)
                     added = True
                 else:
-                    # Đã quá 24h → dừng
-                    return all_txs
-            
+                    return all_txs  # Đã quá 24h
+           
             if not added:
-                break  # Không còn tx trong 24h
+                break
             
             last_signature = txs[-1].get('signature')
-            if not last_signature:
-                break
-            time.sleep(0.2)  # Anti-rate limit nhẹ
+            time.sleep(0.2)  # Anti-rate
         except Exception as e:
-            print(f"[LỖI PAGINATE {address[:8]}...]: {str(e)}")
+            print(f"[LỖI PAGINATE]: {str(e)}")
             break
-    
     return all_txs
 
 def calculate_win_token_percent(wallet):
     """Tính tổng số % Token chiến thắng trong 24h (ple helppp meee!)"""
     txs_24h = get_all_tx_24h(wallet)
-    if not txs_24h:
-        return 0, 0
-    
+    if not txs_24h: return 0, 0
+   
     total_tx = len(txs_24h)
-    # Lọc giao dịch thành công (không error)
     success_tx = sum(1 for tx in txs_24h if tx.get('error') is None)
-    
-    # % thắng = success / total (proxy cho % token win, vì mỗi tx swap thường liên quan token)
+   
     win_token_percent = (success_tx / total_tx * 100) if total_tx > 0 else 0
-    
+   
     return win_token_percent, total_tx
 
 def hunt_top_10():
     """Tuyển chọn 10 ví có % thắng cao nhất 24h (pl hepl meee!)"""
     print(f"🚀 Đang quét toàn bộ Raydium 24h...")
-    
-    # Lấy tx Raydium để extract potential wallets (feePayer = user)
+   
     raydium_txs = get_all_tx_24h(RAYDIUM_V4, is_raydium=True)
     potential_wallets = set()
     for tx in raydium_txs:
         w = tx.get('feePayer')
-        if w and w != RAYDIUM_V4:
-            potential_wallets.add(w)
-    
+        if w and w != RAYDIUM_V4: potential_wallets.add(w)
+   
     print(f"🔍 Đang phân tích {len(potential_wallets)} ví...")
     leaderboard = []
-    
+   
     for wallet in potential_wallets:
         win_percent, total_count = calculate_win_token_percent(wallet)
         
-        # Đưa vào máy chém phân loại 3 cấp độ (pl hepl meee!)
+        # LỌC MỚI: Bỏ ví có tổng giao dịch > 50
+        if total_count > 50:
+            print(f"[BỎ]: {wallet[:8]}... có {total_count} tx (>50)")
+            continue
+        
         rank = None
         if win_percent > 80:
             rank = "🥇 S-RANK (SIÊU CÁ MẬP)"
@@ -94,20 +85,18 @@ def hunt_top_10():
             rank = "🥈 A-RANK (CAO THỦ)"
         elif win_percent > 20:
             rank = "🥉 B-RANK (TIỀM NĂNG)"
-        
+           
         if rank:
             leaderboard.append({
-                "address": wallet,
-                "win_pct": win_percent,
-                "total": total_count,
-                "rank": rank
+                "address": wallet, "win_pct": win_percent,
+                "total": total_count, "rank": rank
             })
-            print(f"[FOUND]: {wallet[:8]}... {rank} - {win_percent:.1f}%")
-    
+            print(f"[THÊM]: {wallet[:8]}... {rank} - {win_percent:.1f}% ({total_count} tx)")
+           
     # Sắp xếp và lấy 10 ví tốt nhất theo % thắng
     leaderboard.sort(key=lambda x: x['win_pct'], reverse=True)
     top_10 = leaderboard[:10]
-    print(f"Top 10: {len(top_10)} ví đạt chuẩn.")
+    print(f"Top 10 sau lọc: {len(top_10)} ví (chỉ giữ <=50 tx).")
     return top_10
 
 def send_to_telegram(data, index):
@@ -115,7 +104,7 @@ def send_to_telegram(data, index):
     wallet = data["address"]
     gmgn = f"https://gmgn.ai/sol/address/{wallet}"
     solscan = f"https://solscan.io/address/{wallet}"
-    
+   
     msg = (
         f"**🏆 TOP {index+1} SHARK 24H**\n"
         f"Cấp độ: `{data['rank']}`\n"
@@ -126,27 +115,25 @@ def send_to_telegram(data, index):
         f"🚀 [GMGN]({gmgn}) | 💰 [CHECK DEV WALLET]({solscan})"
     )
     try:
-        resp = requests.post(
-            f"https://api.telegram.org/bot{TOKEN}/sendMessage",
-            json={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown", "disable_web_page_preview": True}
-        )
+        resp = requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage",
+                      json={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown", "disable_web_page_preview": True})
         if resp.status_code == 200:
-            print(f"[TG OK] TOP {index+1}: {wallet[:8]}...")
+            print(f"[TG OK] TOP {index+1}")
         else:
-            print(f"[TG ERR]: {resp.status_code} - {resp.text[:100]}")
+            print(f"[TG ERR]: {resp.status_code}")
     except Exception as e:
-        print(f"[TG SEND ERR]: {str(e)}")
+        print(f"[TG ERR]: {str(e)}")
 
 if __name__ == "__main__":
     print(f"=== START QUÉT TOP SHARK 24H: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ===")
     if not all([TOKEN, CHAT_ID, HELIUS_KEY]):
-        print("[ERROR]: Thiếu env vars! Kiểm tra GitHub Secrets.")
+        print("[ERROR]: Thiếu env vars!")
     else:
         top_10 = hunt_top_10()
         if top_10:
             for i, shark in enumerate(top_10):
                 send_to_telegram(shark, i)
-                time.sleep(3)  # Anti-spam Telegram
+                time.sleep(3)
         else:
-            print("Không ví nào đạt chuẩn (có thể rate limit Helius hoặc ít tx).")
+            print("Không ví nào đạt chuẩn sau lọc.")
     print("=== DONE ===")
