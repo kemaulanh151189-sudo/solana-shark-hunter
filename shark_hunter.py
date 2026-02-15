@@ -7,132 +7,134 @@ from datetime import datetime, timezone
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 HELIUS_KEY = os.getenv("HELIUS_API_KEY")
+BIRDEYE_KEY = os.getenv("BIRDEYE_API_KEY", "public")  # Default public, nhưng recommend đăng ký key
+
+def calculate_real_performance(wallet):
+    """Calc real winrate (% unique tokens win) và avg ROI từ Birdeye trade history."""
+    try:
+        url = f"https://public-api.birdeye.so/defi/history_trade_address?address={wallet}&address_type=owner&type=ALL&tx_num=100&offset=0"
+        headers = {"X-API-KEY": BIRDEYE_KEY, "x-chain": "solana"}
+        response = requests.get(url, headers=headers)
+        if response.status_code != 200:
+            print(f"[LỖI BIRDEYE]: {response.text}")
+            return 0, 0
+
+        trades = response.json().get('data', {}).get('items', [])
+        if not trades:
+            return 0, 0
+
+        unique_tokens = {}  # token_address: profit (nếu >0 thì win)
+        for trade in trades:
+            token = trade.get('token_address')
+            profit = trade.get('value_change', 0)  # Profit in USD or SOL, tùy
+            if token not in unique_tokens or profit > unique_tokens[token]:
+                unique_tokens[token] = profit
+
+        total_tokens = len(unique_tokens)
+        win_tokens = sum(1 for p in unique_tokens.values() if p > 0)
+        winrate = (win_tokens / total_tokens * 100) if total_tokens > 0 else 0
+
+        win_rois = [p for p in unique_tokens.values() if p > 0]
+        avg_roi = (sum(win_rois) / len(win_rois) * 100) if win_rois else 0  # % ROI avg từ wins
+
+        return winrate, avg_roi
+    except Exception as e:
+        print(f"[LỖI CALC]: {e}")
+        return 0, 0
 
 def brain_check_performance(wallet):
     """
-    NÃO BỘ: Phân cấp 3 tầng lớp thợ săn (ple helppp meee!)
+    NÃO BỘ: Phân cấp 3 tầng lớp thợ săn
     Cấp 1 (🥇): Winrate > 90%, ROI > 500% -> ƯU TIÊN CAO
     Cấp 2 (🥈): Winrate > 80%, ROI > 200% -> ƯU TIÊN TRUNG BÌNH
     Cấp 3 (🥉): Winrate > 70%, ROI > 100% -> ƯU TIÊN THẤP
+    Winrate = % unique tokens win (profit >0), ROI avg từ wins.
     """
-    try:
-        # GIẢ LẬP CHỈ SỐ (Thay bằng API Birdeye/DEX nếu có)
-        # Ple helppp meee! Bot đang giả định thông số để bạn thấy cách nó phân cấp
-        win_rate = 85  
-        avg_roi = 250   
-        token_diversity = 10 
+    win_rate, avg_roi = calculate_real_performance(wallet)
 
-        # --- LOGIC PHÂN CẤP (NÃO BỘ LÀM VIỆC) ---
-        
-        # CẤP 1: HUYỀN THOẠI (🥇)
-        if win_rate >= 90 and avg_roi >= 500:
-            rank = "🥇 HUYỀN THOẠI (S-RANK)"
-            priority = "🔥 CAO NHẤT"
-            print(f"✅ [PHÊ DUYỆT]: Ví {wallet[:8]}... là {rank}")
-            return True, win_rate, avg_roi, rank, priority
+    if win_rate > 90 and avg_roi > 500:
+        rank = "🥇 Gold Medal HUYỀN THOẠI (S-RANK)"
+        priority = "CAO NHẤT"
+    elif win_rate > 80 and avg_roi > 200:
+        rank = "🥈 Silver Medal CAO THỦ (A-RANK)"
+        priority = "TRUNG BÌNH"
+    elif win_rate > 70 and avg_roi > 100:
+        rank = "🥉 Bronze Medal TÂN BINH PRO (B-RANK)"
+        priority = "THẤP"
+    else:
+        print(f"[LOẠI]: Ví {wallet[:8]}... (WR: {win_rate:.1f}%, ROI: {avg_roi:.1f}%) không đủ.")
+        return False, win_rate, avg_roi, "", ""
 
-        # CẤP 2: CAO THỦ (🥈)
-        elif win_rate >= 80 and avg_roi >= 200:
-            rank = "🥈 CAO THỦ (A-RANK)"
-            priority = "⚡ TRUNG BÌNH"
-            print(f"✅ [PHÊ DUYỆT]: Ví {wallet[:8]}... là {rank}")
-            return True, win_rate, avg_roi, rank, priority
-
-        # CẤP 3: TÂN BINH PRO (🥉)
-        elif win_rate >= 70 and avg_roi >= 100:
-            rank = "🥉 TÂN BINH PRO (B-RANK)"
-            priority = "🌱 THẤP"
-            print(f"✅ [PHÊ DUYỆT]: Ví {wallet[:8]}... là {rank}")
-            return True, win_rate, avg_roi, rank, priority
-        
-        # KHÔNG ĐẠT CHUẨN
-        print(f"❌ [LOẠI]: Ví {wallet[:8]}... (WR: {win_rate}%, ROI: {avg_roi}%) không đủ trình độ.")
-        return False, 0, 0, "", ""
-    except Exception as e:
-        print(f"⚠️ [LỖI NÃO BỘ]: {e}")
-        return False, 0, 0, "", ""
+    print(f"[PHÊ DUYỆT]: Ví {wallet[:8]}... là {rank}")
+    return True, win_rate, avg_roi, rank, priority
 
 def get_pro_traders_24h():
-    """Quét 24h và phân loại theo 3 cấp độ (pl hepl meee!)"""
-    if not HELIUS_KEY:
-        print("🚨 [ERROR]: Thiếu API Key!")
+    """Quét top traders 24h từ Birdeye, filter theo level."""
+    if not BIRDEYE_KEY:
+        print("[ERROR]: Thiếu BIRDEYE_API_KEY!")
         return []
 
-    url = f"https://api.helius.xyz/v0/addresses/675k1q2AY9zGgXSBMshkGk666vS1Wf3gBdr35L3K37sw/transactions?api-key={HELIUS_KEY}"
-    
+    url = "https://public-api.birdeye.so/defi/traders?sort_by=win_rate&sort_type=desc&limit=50&offset=0&time_from=24h"
+    headers = {"X-API-KEY": BIRDEYE_KEY, "x-chain": "solana"}
     try:
-        print(f"📡 [{datetime.now().strftime('%H:%M:%S')}] Đang soi lịch trình 24h...")
-        response = requests.get(url)
-        if response.status_code == 200:
-            txs = response.json()
-            qualified_wallets = []
-            processed_wallets = set()
-            now = datetime.now(timezone.utc).timestamp()
+        response = requests.get(url, headers=headers)
+        if response.status_code != 200:
+            print(f"[LỖI TOP TRADERS]: {response.text}")
+            return []
 
-            for tx in txs:
-                if now - tx.get('timestamp', 0) <= 86400:
-                    description = tx.get('description', '')
-                    if description:
-                        wallet = description.split(' ')[0]
-                        if len(wallet) >= 32 and wallet not in processed_wallets:
-                            processed_wallets.add(wallet)
-                            
-                            # NÃO BỘ KIỂM TRA VÀ PHÂN CẤP
-                            is_qualified, wr, roi, rank, priority = brain_check_performance(wallet)
-                            if is_qualified:
-                                qualified_wallets.append({
-                                    "address": wallet, "winrate": wr, "roi": roi, 
-                                    "rank": rank, "priority": priority
-                                })
-                else: break
-            
-            print(f"📊 Kết quả quét: Thẩm định {len(processed_wallets)} ví. Giữ lại {len(qualified_wallets)} ví chất lượng.")
-            return qualified_wallets
-    except: return []
+        traders = response.json().get('data', {}).get('items', [])
+        qualified_wallets = []
+        for trader in traders:
+            wallet = trader.get('wallet_address')
+            is_qualified, wr, roi, rank, priority = brain_check_performance(wallet)
+            if is_qualified:
+                qualified_wallets.append({
+                    "address": wallet, "winrate": wr, "roi": roi, 
+                    "rank": rank, "priority": priority
+                })
+        print(f"Kết quả: {len(qualified_wallets)} ví đạt cấp.")
+        return qualified_wallets
+    except Exception as e:
+        print(f"[LỖI QUÉT]: {e}")
+        return []
 
 def send_to_telegram(data):
-    """Gửi tin nhắn có đánh dấu độ ưu tiên (ple helppp meee!)"""
+    """Gửi tin nhắn với level + priority."""
     wallet = data["address"]
     gmgn_link = f"https://gmgn.ai/sol/address/{wallet}"
-    solscan_dev = f"https://solscan.io/address/{wallet}"
-    
-    header = f"🚨 **DETECTION: {data['rank']}**"
-    
-    body = (
-        f"👤 **Address:** `{wallet}`\n"
-        f"----------------------------------\n"
-        f"🎯 **Winrate:** {data['winrate']}% | 📈 **ROI:** {data['roi']}%\n"
-        f"🚩 **ĐỘ ƯU TIÊN:** `{data['priority']}`\n"
-        f"----------------------------------\n"
-        f"🕵️ **Lịch trình:** Ví này đang hoạt động cực năng suất trong 24h qua!"
-    )
+    solscan_link = f"https://solscan.io/address/{wallet}"
 
-    footer = (
-        f"🚀 [GMGN.AI]({gmgn_link})\n"
-        f"💰 [CHECK DEV WALLET]({solscan_dev})"
+    header = f"**DETECTION: {data['rank']}**"
+    body = (
+        f"**Address:** `{wallet}`\n"
+        f"**Winrate:** {data['winrate']:.1f}% | **ROI:** {data['roi']:.1f}%\n"
+        f"**ƯU TIÊN:** `{data['priority']}`\n"
+        f"Hoạt động 24h: High performer!"
     )
+    footer = f"[GMGN]({gmgn_link}) | [Solscan]({solscan_link})"
 
     full_message = f"{header}\n\n{body}\n\n{footer}"
-    
     try:
         requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", 
                       json={"chat_id": CHAT_ID, "text": full_message, "parse_mode": "Markdown", "disable_web_page_preview": True})
-        print(f"📤 [TELEGRAM]: Đã báo cáo ví {data['rank']}...")
-    except: pass
+        print(f"[TELEGRAM]: Sent {data['rank']} ví...")
+    except Exception as e:
+        print(f"[LỖI TELEGRAM]: {e}")
 
 def hunt():
-    print(f"🚀 === BẮT ĐẦU QUÉT PHÂN CẤP: {datetime.now().strftime('%H:%M:%S')} ===")
+    print(f"=== QUÉT WHALE: {datetime.now().strftime('%H:%M:%S')} ===")
     pro_traders = get_pro_traders_24h()
-    
-    if not pro_traders:
-        print("📭 Không tìm thấy ví nào đạt chuẩn 3 cấp độ.")
-    else:
-        # Sắp xếp để gửi ví xịn nhất lên trước
+    if pro_traders:
         pro_traders.sort(key=lambda x: x['winrate'], reverse=True)
         for trader in pro_traders:
             send_to_telegram(trader)
-            time.sleep(1.5)
-    print(f"😴 === HOÀN THÀNH. ĐANG NGHỈ NGƠI... ===\n")
+            time.sleep(2)  # Anti-spam
+    else:
+        print("No qualified whales.")
+    print("=== DONE ===\n")
 
 if __name__ == "__main__":
-    if TOKEN and CHAT_ID: hunt()
+    if TOKEN and CHAT_ID and BIRDEYE_KEY:
+        hunt()
+    else:
+        print("[ERROR]: Thiếu env vars!")
