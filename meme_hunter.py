@@ -9,23 +9,30 @@ CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 HELIUS_KEY = os.getenv("HELIUS_API_KEY")
 
 def get_exclusive_pools():
-    """Lọc cực gắt: < 5 phút & bắt được địa chỉ Token (CA)"""
+    """Chỉ lấy Token mới tạo < 5 phút & Lọc rác (ple helppp meee!)"""
     if not HELIUS_KEY: return []
+    # Địa chỉ Raydium Authority để bắt kèo mới
     url = f"https://api.helius.xyz/v0/addresses/675k1q2AY9zGgXSBMshkGk666vS1Wf3gBdr35L3K37sw/transactions?api-key={HELIUS_KEY}"
+    
     try:
         response = requests.get(url)
         if response.status_code == 200:
             txs = response.json()
             found_items = []
             now = datetime.now(timezone.utc).timestamp()
+            
             for tx in txs:
-                if now - tx.get('timestamp', 0) <= 300: # LỌC 5 PHÚT
+                # --- ĐỘ TƯƠI < 5 PHÚT (300 GIÂY) ---
+                time_diff = now - tx.get('timestamp', 0)
+                if time_diff <= 300: 
                     description = tx.get('description', '')
-                    if description and "swapped" in description.lower():
-                        # Bóc tách địa chỉ ví và bối cảnh giao dịch
+                    # Chỉ lấy lệnh Hoán đổi hoặc Khởi tạo
+                    if description and any(x in description.lower() for x in ["swapped", "initialize"]):
                         wallet = description.split(' ')[0]
                         found_items.append(wallet)
-                else: break
+                else: 
+                    # Quá 5 phút là dừng quét ngay để tiết kiệm Credits
+                    break 
             return list(set(found_items))
     except: return []
     return []
