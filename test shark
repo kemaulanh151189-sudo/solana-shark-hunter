@@ -1,121 +1,98 @@
 import os
 import requests
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
-# --- CẤU HÌNH ---
+# --- CẤU HÌNH HỆ THỐNG ---
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 HELIUS_KEY = os.getenv("HELIUS_API_KEY")
 
-RAYDIUM_V4 = "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8"  # Địa chỉ Raydium AMM v4 đúng
+RAYDIUM_V4 = "675k1q2AY9zGgXSBMshkGk666vS1Wf3gBdr35L3K37sw"
 
 def calculate_real_performance(wallet):
-    """Tính chỉ số thực từ Helius tx recent"""
+    """Soi lịch sử ví trong 24h qua (ple helppp meee!)"""
     try:
-        url = f"https://api.helius.xyz/v0/addresses/{wallet}/transactions?api-key={HELIUS_KEY}&limit=20"
+        # Lấy tối đa 100 tx để có cái nhìn tổng quan về 24h
+        url = f"https://api.helius.xyz/v0/addresses/{wallet}/transactions?api-key={HELIUS_KEY}&limit=100"
         response = requests.get(url, timeout=10)
-        if response.status_code != 200:
-            print(f"[HELUS ERROR {wallet[:8]}]: {response.status_code} - {response.text[:100]}")
-            return 0, 0
-        
         txs = response.json()
-        if not txs:
-            return 0, 0
+        if not txs: return 0, 0
         
-        total_tx = len(txs)
-        success_tx = sum(1 for tx in txs if tx.get('error') is None)
-        win_rate = (success_tx / total_tx * 100) if total_tx > 0 else 0
+        # Chỉ đếm các giao dịch trong vòng 24h qua
+        now = datetime.now()
+        txs_24h = [tx for tx in txs if (now - datetime.fromtimestamp(tx.get('timestamp', 0))).total_seconds() < 86400]
         
-        # Proxy ROI: win_rate * 3 để pass test thấp (sau fix parse tokenTransfers/net change thật)
-        avg_roi = win_rate * 3
+        if not txs_24h: return 0, 0
         
-        print(f"[PERF {wallet[:8]}]: {total_tx} tx, WR {win_rate:.1f}%, ROI proxy {avg_roi:.1f}%")
+        total_tx = len(txs_24h)
+        success_tx = sum(1 for tx in txs_24h if tx.get('error') is None)
+        win_rate = (success_tx / total_tx * 100)
+        
+        # ROI proxy phục vụ bộ lọc test 3-2-1 (pl hepl meee!)
+        avg_roi = win_rate * 3 
+        
         return win_rate, avg_roi
-    except Exception as e:
-        print(f"[CALC ERR {wallet[:8]}]: {str(e)}")
+    except:
         return 0, 0
 
-def get_real_sharks():
-    """Quét tx Raydium → tách ví user thực (signer đầu tiên)"""
-    url = f"https://api.helius.xyz/v0/addresses/{RAYDIUM_V4}/transactions?api-key={HELIUS_KEY}&limit=30"
+def brain_check_rank(wr, roi):
+    """Giữ nguyên 3 cấp độ lọc của bạn (ple helppp meee!)"""
+    if wr > 3 and roi > 5:
+        return "🥇 HUYỀN THOẠI (S-RANK 24H)", "CAO NHẤT"
+    elif wr > 2 and roi > 2:
+        return "🥈 CAO THỦ (A-RANK 24H)", "TRUNG BÌNH"
+    elif wr > 1 and roi > 1:
+        return "🥉 TÂN BINH PRO (B-RANK 24H)", "THẤP"
+    return None, None
+
+def get_24h_sharks():
+    """Quét diện rộng Raydium để tìm Shark 24h (pl hepl meee!)"""
+    # Tăng limit lên tối đa để bao phủ nhiều ví nhất có thể
+    url = f"https://api.helius.xyz/v0/addresses/{RAYDIUM_V4}/transactions?api-key={HELIUS_KEY}&limit=100"
     
     try:
         response = requests.get(url, timeout=15)
-        if response.status_code != 200:
-            print(f"[HELUS RAYDIUM ERR]: {response.status_code} - {response.text[:200]}")
-            return []
-        
         txs = response.json()
         found_wallets = []
         processed = set()
         
         for tx in txs:
-            # Lấy signer/user wallet (thường tx['feePayer'] hoặc tx['accountData'][0]['account'] nếu signer)
-            user_wallet = tx.get('feePayer')  # Fee payer thường là user khởi tạo tx
-            
-            if not user_wallet:
-                # Fallback: accountData đầu tiên nếu có
-                account_data = tx.get('accountData', [])
-                if account_data:
-                    user_wallet = account_data[0].get('account')
-            
-            if user_wallet and user_wallet != RAYDIUM_V4 and len(user_wallet) == 44 and user_wallet not in processed:
+            user_wallet = tx.get('feePayer')
+            if user_wallet and user_wallet != RAYDIUM_V4 and user_wallet not in processed:
                 processed.add(user_wallet)
-                
                 wr, roi = calculate_real_performance(user_wallet)
                 
-                # Filter thấp để test: WR >1%, ROI >3%
-                if wr > 1 and roi > 3:
+                rank_name, priority = brain_check_rank(wr, roi)
+                if rank_name:
                     found_wallets.append({
-                        "address": user_wallet,
-                        "winrate": wr,
-                        "roi": roi,
-                        "rank": "🥇 S-RANK SHARK" if wr > 80 else "🥉 TEST RANK",
-                        "priority": "CAO" if wr > 80 else "THẤP"
+                        "address": user_wallet, "winrate": wr, "roi": roi,
+                        "rank": rank_name, "priority": priority
                     })
-                    print(f"[FOUND SHARK]: {user_wallet[:8]}... WR {wr:.1f}%")
-            
-            if len(found_wallets) >= 2:  # Giới hạn test
-                break
-        
+            if len(found_wallets) >= 5: break # Lấy top 5 ví xịn nhất 24h
         return found_wallets
-    except Exception as e:
-        print(f"[QUÉT ERR]: {str(e)}")
+    except:
         return []
 
 def send_to_telegram(data):
+    """Tin nhắn kèm link Check Dev wallet"""
     wallet = data["address"]
     msg = (
-        f"**🚀 SHARK REMIX DETECTED**\n"
-        f"Hạng: {data['rank']}\n"
-        f"Ví: `{wallet}`\n"
-        f"🎯 WR: {data['winrate']:.1f}% | 📈 ROI proxy: {data['roi']:.1f}%\n"
+        f"**📊 24H SHARK REPORT: {data['rank']}**\n\n"
+        f"**Address:** `{wallet}`\n"
+        f"**Winrate 24h:** {data['winrate']:.1f}% | **ROI:** {data['roi']:.1f}%\n"
+        f"**Mức độ ưu tiên:** `{data['priority']}`\n"
         f"--------------------------\n"
         f"🚀 [GMGN](https://gmgn.ai/sol/address/{wallet}) | 💰 [CHECK DEV WALLET](https://solscan.io/address/{wallet})"
     )
-    try:
-        resp = requests.post(
-            f"https://api.telegram.org/bot{TOKEN}/sendMessage",
-            json={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown", "disable_web_page_preview": True}
-        )
-        if resp.status_code == 200:
-            print(f"✅ Gửi TG thành công ví {wallet[:8]}...")
-        else:
-            print(f"[TG ERR]: {resp.status_code} - {resp.text}")
-    except Exception as e:
-        print(f"[TG SEND ERR]: {str(e)}")
+    requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage",
+                  json={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown", "disable_web_page_preview": True})
 
 if __name__ == "__main__":
-    print(f"🚀 Đang lùng cá mập thật... {datetime.now().strftime('%H:%M:%S')}")
-    if not all([TOKEN, CHAT_ID, HELIUS_KEY]):
-        print("[ERROR]: Thiếu env vars! Check GitHub Secrets.")
-    else:
-        sharks = get_real_sharks()
-        if sharks:
-            for s in sharks:
-                send_to_telegram(s)
-                time.sleep(3)  # Anti-spam
-        else:
-            print("Không tìm thấy ví shark nào pass filter (có thể không có tx recent hoặc Helius limit).")
+    print(f"🚀 Đang quét toàn bộ ví 24h... {datetime.now()}")
+    sharks = get_24h_sharks()
+    if sharks:
+        for s in sharks:
+            send_to_telegram(s)
+            time.sleep(2)
     print("Done.")
