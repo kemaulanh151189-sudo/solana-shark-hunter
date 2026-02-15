@@ -10,29 +10,30 @@ HELIUS_KEY = os.getenv("HELIUS_API_KEY")
 
 def brain_check_performance(wallet):
     """
-    NÃO BỘ: Phân cấp 3 tầng lớp (ĐÃ HẠ ĐIỀU KIỆN ĐỂ TEST - pl hepl meee!)
-    Cấp 1 (🥇): Winrate > 20%, ROI > 50%
-    Cấp 2 (🥈): Winrate > 15%, ROI > 30%
-    Cấp 3 (🥉): Winrate > 10%, ROI > 10%
+    NÃO BỘ: Phân cấp 3 tầng - HẠ ĐIỀU KIỆN CỰC THẤP ĐỂ TEST (pl hepl meee!)
+    Cấp 1 (🥇): Winrate >= 3%
+    Cấp 2 (🥈): Winrate >= 2%
+    Cấp 3 (🥉): Winrate >= 1%
     """
     try:
-        # GIẢ LẬP CHỈ SỐ THẤP ĐỂ TEST (ple helppp meee!)
-        win_rate = 25  
-        avg_roi = 60   
+        # GIẢ LẬP: Bot sẽ tự cho ví này có Winrate 5% để chắc chắn khớp Cấp 1
+        # Bạn có thể sửa số 5 này thành 2.5 để xem nó có báo thành Cấp 2 không.
+        win_rate = 5  
+        avg_roi = 10   
         
-        # --- LOGIC PHÂN CẤP GIỮ NGUYÊN ---
-        if win_rate >= 20 and avg_roi >= 50:
-            rank = "🥇 HUYỀN THOẠI (TEST)"
+        # --- LOGIC PHÂN CẤP THEO BẬC THANG (ple helppp meee!) ---
+        if win_rate >= 3:
+            rank = "🥇 HUYỀN THOẠI (TEST 3%)"
             priority = "🔥 CAO NHẤT"
             return True, win_rate, avg_roi, rank, priority
 
-        elif win_rate >= 15 and avg_roi >= 30:
-            rank = "🥈 CAO THỦ (TEST)"
+        elif win_rate >= 2:
+            rank = "🥈 CAO THỦ (TEST 2%)"
             priority = "⚡ TRUNG BÌNH"
             return True, win_rate, avg_roi, rank, priority
 
-        elif win_rate >= 10 and avg_roi >= 10:
-            rank = "🥉 TÂN BINH PRO (TEST)"
+        elif win_rate >= 1:
+            rank = "🥉 TÂN BINH PRO (TEST 1%)"
             priority = "🌱 THẤP"
             return True, win_rate, avg_roi, rank, priority
         
@@ -41,16 +42,16 @@ def brain_check_performance(wallet):
         return False, 0, 0, "", ""
 
 def get_pro_traders_24h():
-    """Quét Blockchain và gọi Não Bộ kiểm tra (pl hepl meee!)"""
+    """Quét Blockchain thực tế (pl hepl meee!)"""
     url = f"https://api.helius.xyz/v0/addresses/675k1q2AY9zGgXSBMshkGk666vS1Wf3gBdr35L3K37sw/transactions?api-key={HELIUS_KEY}"
     try:
-        print(f"📡 [{datetime.now().strftime('%H:%M:%S')}] Đang quét ví thực tế...")
+        print(f"📡 [{datetime.now().strftime('%H:%M:%S')}] Đang quét ví thực tế để TEST...")
         response = requests.get(url)
         txs = response.json()
         qualified_wallets = []
         processed_wallets = set()
         
-        for tx in txs[:50]: # Quét 50 giao dịch gần nhất
+        for tx in txs[:20]: # Quét 20 giao dịch gần nhất cho nhanh
             description = tx.get('description', '')
             if description:
                 wallet = description.split(' ')[0]
@@ -62,15 +63,15 @@ def get_pro_traders_24h():
                             "address": wallet, "winrate": wr, "roi": roi, 
                             "rank": rank, "priority": priority
                         })
-            if len(qualified_wallets) >= 2: break 
+            if len(qualified_wallets) >= 1: break # Tìm thấy 1 ví là bắn tin luôn
         return qualified_wallets
     except: return []
 
 def send_to_telegram(data):
-    """Gửi tin nhắn kèm link Check Dev wallet theo đúng yêu cầu (ple helppp meee!)"""
+    """Gửi tin nhắn kèm Check Dev wallet (ple helppp meee!)"""
     wallet = data["address"]
     gmgn_link = f"https://gmgn.ai/sol/address/{wallet}"
-    solscan_dev = f"https://solscan.io/address/{wallet}" # Link check dev wallet
+    solscan_dev = f"https://solscan.io/address/{wallet}"
     
     msg = (
         f"🧪 **SHARK TEST: {data['rank']}**\n"
@@ -84,9 +85,9 @@ def send_to_telegram(data):
                   json={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown", "disable_web_page_preview": True})
 
 if __name__ == "__main__":
-    print("🚀 Bắt đầu TEST luồng Shark Hunter Phân Cấp...")
+    print("🚀 Bắt đầu TEST luồng Shark Hunter 3-2-1%...")
     pro_traders = get_pro_traders_24h()
     for trader in pro_traders:
         send_to_telegram(trader)
-        print(f"✅ Đã bắn tin nhắn test cho ví: {trader['address'][:8]}...")
+        print(f"✅ Đã bắn tin nhắn: {trader['rank']}")
     print("🏁 Kết thúc Test.")
