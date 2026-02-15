@@ -8,70 +8,85 @@ TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 HELIUS_KEY = os.getenv("HELIUS_API_KEY")
 
-def brain_test_shark(wallet):
-    """NÃO BỘ TEST: Hạ tiêu chuẩn để chắc chắn có ví được chọn (pl hepl meee!)"""
+def brain_check_performance(wallet):
+    """
+    NÃO BỘ: Phân cấp 3 tầng lớp (ĐÃ HẠ ĐIỀU KIỆN ĐỂ TEST - pl hepl meee!)
+    Cấp 1 (🥇): Winrate > 20%, ROI > 50%
+    Cấp 2 (🥈): Winrate > 15%, ROI > 30%
+    Cấp 3 (🥉): Winrate > 10%, ROI > 10%
+    """
     try:
-        # GIẢ LẬP: Chỉ số rất thấp để dễ dàng vượt qua bài test
-        win_rate = 15  # Chỉ cần > 10% là đạt
-        avg_roi = 20   # Chỉ cần > 10% là đạt
-        token_diversity = 2 # Chỉ cần trade 2 con là đạt
-
-        # ĐIỀU KIỆN TEST CỰC THẤP
-        if win_rate >= 10 and avg_roi >= 10:
-            rank = "🧪 TEST SHARK (LEVEL 0)"
-            print(f"✅ [TEST PASS]: Ví {wallet[:8]}... đã vượt qua bộ lọc tối thiểu.")
-            return True, win_rate, avg_roi, rank
+        # GIẢ LẬP CHỈ SỐ THẤP ĐỂ TEST (ple helppp meee!)
+        win_rate = 25  
+        avg_roi = 60   
         
-        return False, 0, 0, ""
-    except:
-        return False, 0, 0, ""
+        # --- LOGIC PHÂN CẤP GIỮ NGUYÊN ---
+        if win_rate >= 20 and avg_roi >= 50:
+            rank = "🥇 HUYỀN THOẠI (TEST)"
+            priority = "🔥 CAO NHẤT"
+            return True, win_rate, avg_roi, rank, priority
 
-def get_test_traders():
-    """Quét nhanh vài giao dịch để test (ple helppp meee!)"""
-    # Dùng Raydium Authority để lấy giao dịch thực
+        elif win_rate >= 15 and avg_roi >= 30:
+            rank = "🥈 CAO THỦ (TEST)"
+            priority = "⚡ TRUNG BÌNH"
+            return True, win_rate, avg_roi, rank, priority
+
+        elif win_rate >= 10 and avg_roi >= 10:
+            rank = "🥉 TÂN BINH PRO (TEST)"
+            priority = "🌱 THẤP"
+            return True, win_rate, avg_roi, rank, priority
+        
+        return False, 0, 0, "", ""
+    except:
+        return False, 0, 0, "", ""
+
+def get_pro_traders_24h():
+    """Quét Blockchain và gọi Não Bộ kiểm tra (pl hepl meee!)"""
     url = f"https://api.helius.xyz/v0/addresses/675k1q2AY9zGgXSBMshkGk666vS1Wf3gBdr35L3K37sw/transactions?api-key={HELIUS_KEY}"
-    
     try:
-        print(f"📡 [{datetime.now().strftime('%H:%M:%S')}] Đang chạy chế độ TEST...")
+        print(f"📡 [{datetime.now().strftime('%H:%M:%S')}] Đang quét ví thực tế...")
         response = requests.get(url)
         txs = response.json()
+        qualified_wallets = []
+        processed_wallets = set()
         
-        # Chỉ lấy 5 ví mới nhất để test cho nhanh
-        test_wallets = []
-        processed = set()
-        
-        for tx in txs[:50]: # Quét rộng một chút để tìm ví
+        for tx in txs[:50]: # Quét 50 giao dịch gần nhất
             description = tx.get('description', '')
             if description:
                 wallet = description.split(' ')[0]
-                if len(wallet) >= 32 and wallet not in processed:
-                    processed.add(wallet)
-                    is_ok, wr, roi, rank = brain_test_shark(wallet)
-                    if is_ok:
-                        test_wallets.append({"address": wallet, "wr": wr, "roi": roi, "rank": rank})
-            if len(test_wallets) >= 2: break # Tìm thấy 2 ví là dừng test ngay
-            
-        return test_wallets
-    except Exception as e:
-        print(f"🚨 Error: {e}")
-        return []
+                if len(wallet) >= 32 and wallet not in processed_wallets:
+                    processed_wallets.add(wallet)
+                    is_qualified, wr, roi, rank, priority = brain_check_performance(wallet)
+                    if is_qualified:
+                        qualified_wallets.append({
+                            "address": wallet, "winrate": wr, "roi": roi, 
+                            "rank": rank, "priority": priority
+                        })
+            if len(qualified_wallets) >= 2: break 
+        return qualified_wallets
+    except: return []
 
-def send_test_msg(data):
-    """Gửi tin nhắn test lên Telegram (pl hepl meee!)"""
+def send_to_telegram(data):
+    """Gửi tin nhắn kèm link Check Dev wallet theo đúng yêu cầu (ple helppp meee!)"""
+    wallet = data["address"]
+    gmgn_link = f"https://gmgn.ai/sol/address/{wallet}"
+    solscan_dev = f"https://solscan.io/address/{wallet}" # Link check dev wallet
+    
     msg = (
-        f"🧪 **TEST MODE ACTIVE**\n"
-        f"👤 **Ví:** `{data['address']}`\n"
-        f"📊 **Rank:** {data['rank']}\n"
+        f"🧪 **SHARK TEST: {data['rank']}**\n"
+        f"👤 **Ví:** `{wallet}`\n"
+        f"🎯 **WR:** {data['winrate']}% | 📈 **ROI:** {data['roi']}%\n"
+        f"🚩 **ƯU TIÊN:** `{data['priority']}`\n"
         f"----------------------------------\n"
-        f"💰 [CHECK DEV WALLET](https://solscan.io/address/{data['address']})"
+        f"🚀 [GMGN.AI]({gmgn_link}) | 💰 [CHECK DEV WALLET]({solscan_dev})"
     )
     requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage", 
-                  json={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown"})
-    print(f"📤 Đã gửi tin nhắn test cho ví {data['address'][:8]}...")
+                  json={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown", "disable_web_page_preview": True})
 
 if __name__ == "__main__":
-    print("🚀 Bắt đầu test luồng Shark Hunter...")
-    results = get_test_traders()
-    for item in results:
-        send_test_msg(item)
+    print("🚀 Bắt đầu TEST luồng Shark Hunter Phân Cấp...")
+    pro_traders = get_pro_traders_24h()
+    for trader in pro_traders:
+        send_to_telegram(trader)
+        print(f"✅ Đã bắn tin nhắn test cho ví: {trader['address'][:8]}...")
     print("🏁 Kết thúc Test.")
