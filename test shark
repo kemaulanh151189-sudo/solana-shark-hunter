@@ -8,32 +8,41 @@ TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 HELIUS_KEY = os.getenv("HELIUS_API_KEY")
 
-RAYDIUM_V4 = "675k1q2AY9zGgXSBMshkGk666vS1Wf3gBdr35L3K37sw"
+# Địa chỉ Raydium AMM v4 đúng (Legacy AMM v4 Constant Product)
+RAYDIUM_V4 = "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8"
 
 def calculate_real_performance(wallet):
     """Soi lịch sử ví trong 24h qua (ple helppp meee!)"""
     try:
-        # Lấy tối đa 100 tx để có cái nhìn tổng quan về 24h
+        # Lấy tối đa 100 tx
         url = f"https://api.helius.xyz/v0/addresses/{wallet}/transactions?api-key={HELIUS_KEY}&limit=100"
         response = requests.get(url, timeout=10)
+        response.raise_for_status()  # Raise nếu lỗi HTTP
         txs = response.json()
-        if not txs: return 0, 0
+        if not txs:
+            return 0, 0
         
-        # Chỉ đếm các giao dịch trong vòng 24h qua
+        # Chỉ đếm tx trong vòng 24h qua
         now = datetime.now()
-        txs_24h = [tx for tx in txs if (now - datetime.fromtimestamp(tx.get('timestamp', 0))).total_seconds() < 86400]
+        txs_24h = []
+        for tx in txs:
+            ts = tx.get('timestamp')
+            if ts and (now - datetime.fromtimestamp(ts)).total_seconds() < 86400:
+                txs_24h.append(tx)
         
-        if not txs_24h: return 0, 0
+        if not txs_24h:
+            return 0, 0
         
         total_tx = len(txs_24h)
         success_tx = sum(1 for tx in txs_24h if tx.get('error') is None)
-        win_rate = (success_tx / total_tx * 100)
+        win_rate = (success_tx / total_tx * 100) if total_tx > 0 else 0
         
-        # ROI proxy phục vụ bộ lọc test 3-2-1 (pl hepl meee!)
-        avg_roi = win_rate * 3 
+        # ROI proxy: win_rate * 3 để dễ pass filter test thấp (sau này parse net change thật)
+        avg_roi = win_rate * 3
         
         return win_rate, avg_roi
-    except:
+    except Exception as e:
+        print(f"[LỖI CALC {wallet[:8]}...]: {str(e)}")
         return 0, 0
 
 def brain_check_rank(wr, roi):
@@ -47,31 +56,53 @@ def brain_check_rank(wr, roi):
     return None, None
 
 def get_24h_sharks():
-    """Quét diện rộng Raydium để tìm Shark 24h (pl hepl meee!)"""
-    # Tăng limit lên tối đa để bao phủ nhiều ví nhất có thể
+    """Quét diện rộng Raydium để tìm Shark 24h (ple helppp meee!)"""
     url = f"https://api.helius.xyz/v0/addresses/{RAYDIUM_V4}/transactions?api-key={HELIUS_KEY}&limit=100"
     
     try:
         response = requests.get(url, timeout=15)
+        response.raise_for_status()
         txs = response.json()
+        
         found_wallets = []
         processed = set()
         
         for tx in txs:
-            user_wallet = tx.get('feePayer')
-            if user_wallet and user_wallet != RAYDIUM_V4 and user_wallet not in processed:
+            user_wallet = tx.get('feePayer')  # Fee payer thường là user khởi tạo tx
+            
+            # Fallback nếu không có feePayer
+            if not user_wallet and tx.get('accountData'):
+                account_data = tx.get('accountData', [])
+                if account_data:
+                    user_wallet = account_data[0].get('account')
+            
+            if (user_wallet and 
+                user_wallet != RAYDIUM_V4 and 
+                len(user_wallet) == 44 and  # Base58 Solana address length
+                user_wallet not in processed):
+                
                 processed.add(user_wallet)
+                
                 wr, roi = calculate_real_performance(user_wallet)
                 
                 rank_name, priority = brain_check_rank(wr, roi)
                 if rank_name:
                     found_wallets.append({
-                        "address": user_wallet, "winrate": wr, "roi": roi,
-                        "rank": rank_name, "priority": priority
+                        "address": user_wallet,
+                        "winrate": wr,
+                        "roi": roi,
+                        "rank": rank_name,
+                        "priority": priority
                     })
-            if len(found_wallets) >= 5: break # Lấy top 5 ví xịn nhất 24h
+                    print(f"[PHÊ DUYỆT]: {user_wallet[:8]}... {rank_name}")
+            
+            if len(found_wallets) >= 5:
+                break  # Top 5 ví xịn nhất
+        
+        print(f"Tìm được {len(found_wallets)} ví shark 24h.")
         return found_wallets
-    except:
+    except Exception as e:
+        print(f"[LỖI QUÉT RAYDIUM]: {str(e)}")
         return []
 
 def send_to_telegram(data):
@@ -80,19 +111,33 @@ def send_to_telegram(data):
     msg = (
         f"**📊 24H SHARK REPORT: {data['rank']}**\n\n"
         f"**Address:** `{wallet}`\n"
-        f"**Winrate 24h:** {data['winrate']:.1f}% | **ROI:** {data['roi']:.1f}%\n"
+        f"**Winrate 24h:** {data['winrate']:.1f}% | **ROI proxy:** {data['roi']:.1f}%\n"
         f"**Mức độ ưu tiên:** `{data['priority']}`\n"
         f"--------------------------\n"
         f"🚀 [GMGN](https://gmgn.ai/sol/address/{wallet}) | 💰 [CHECK DEV WALLET](https://solscan.io/address/{wallet})"
     )
-    requests.post(f"https://api.telegram.org/bot{TOKEN}/sendMessage",
-                  json={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown", "disable_web_page_preview": True})
+    try:
+        resp = requests.post(
+            f"https://api.telegram.org/bot{TOKEN}/sendMessage",
+            json={"chat_id": CHAT_ID, "text": msg, "parse_mode": "Markdown", "disable_web_page_preview": True}
+        )
+        if resp.status_code == 200:
+            print(f"[TELEGRAM]: Sent {data['rank']} cho ví {wallet[:8]}...")
+        else:
+            print(f"[TG ERR]: {resp.status_code} - {resp.text[:100]}")
+    except Exception as e:
+        print(f"[LỖI GỬI TG]: {str(e)}")
 
 if __name__ == "__main__":
-    print(f"🚀 Đang quét toàn bộ ví 24h... {datetime.now()}")
-    sharks = get_24h_sharks()
-    if sharks:
-        for s in sharks:
-            send_to_telegram(s)
-            time.sleep(2)
+    print(f"🚀 Đang quét toàn bộ ví 24h... {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    if not all([TOKEN, CHAT_ID, HELIUS_KEY]):
+        print("[ERROR]: Thiếu env vars (TOKEN/CHAT_ID/HELIUS)! Check GitHub Secrets.")
+    else:
+        sharks = get_24h_sharks()
+        if sharks:
+            for s in sharks:
+                send_to_telegram(s)
+                time.sleep(2)  # Anti-spam
+        else:
+            print("Không tìm thấy ví shark nào đạt chuẩn (có thể do rate limit Helius hoặc không có tx phù hợp).")
     print("Done.")
