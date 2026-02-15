@@ -44,7 +44,7 @@ def send_ultimate_alert(wallet):
         f"----------------------------------\n"
         f"🎯 **TIÊU CHUẨN RIÊNG CỦA BẠN:**\n"
         f"❌ **HOLDERS:** Top 10 PHẢI < 5% (Check GMGN)\n"
-        f"🔥 **LP:** Phải Burned & > 15 SOL\n"
+        f"🔥 **LP:** Phải Burned & > 5 SOL\n"
         f"🚫 **SCAM:** Tax < 30% | No Freeze | No Mint\n"
         f"⚠️ **DANGER:** Tuyệt đối KHÔNG ký 'Approve Access'\n"
         f"----------------------------------\n"
